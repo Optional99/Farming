@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Farm Plan</title>
+<meta name="description" content="Enter your crop, planting date and number of plants. Get a simple editable task plan with estimated expense and profit.">
+<meta name="theme-color" content="#1b7a4b">
+<style>
+:root{--bg:#f5f7f4;--card:#fff;--ink:#1d2b24;--mute:#5b6b62;--g:#1b7a4b;--onG:#fff;--line:#c9d4cd;--soft:#e6ece8;--warn:#9a4b00;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#121815;--card:#1c2420;--ink:#e8efe9;--mute:#a3b3a9;--g:#4cc58a;--onG:#0b1a12;--line:#3a4a41;--soft:#26312b;--warn:#f0a35e}}
+:root[data-theme="dark"]{--bg:#121815;--card:#1c2420;--ink:#e8efe9;--mute:#a3b3a9;--g:#4cc58a;--onG:#0b1a12;--line:#3a4a41;--soft:#26312b;--warn:#f0a35e}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,"Noto Sans Kannada",system-ui,sans-serif}
+.app{max-width:480px;margin:0 auto;padding:20px;min-height:100vh;display:flex;flex-direction:column;gap:14px}
+h1{margin:0;font-size:28px}.kn{font-size:14px;color:var(--mute)}
+.card{background:var(--card);border-radius:16px;padding:16px}
+.mute{color:var(--mute);font-size:14px}
+.row{display:flex;align-items:center;gap:12px}.sp{justify-content:space-between}
+.big{min-height:64px;border:0;border-radius:16px;background:var(--g);color:var(--onG);font-size:20px;font-weight:700;width:100%}
+.btn{min-height:44px;padding:0 16px;border:0;border-radius:12px;background:var(--g);color:var(--onG);font-size:15px;font-weight:600}
+.out{min-height:56px;border:2px solid var(--g);border-radius:14px;background:var(--card);color:var(--g);font-size:16px;font-weight:700}
+.done{min-width:96px;min-height:56px;border-radius:14px;font-size:16px;font-weight:700;border:2px solid var(--g);background:var(--card);color:var(--g)}
+.done.on{background:var(--g);color:var(--onG)}
+.lnk{min-height:44px;background:none;border:0;color:var(--mute);font-size:14px;text-decoration:underline}
+label{display:flex;flex-direction:column;gap:8px;font-size:16px;font-weight:600}
+input,select{min-height:56px;border:2px solid var(--line);border-radius:14px;padding:0 16px;font-size:18px;font-family:inherit;background:var(--card);color:var(--ink)}
+.g{font-size:13px;font-weight:700;color:var(--mute);text-transform:uppercase;margin-top:6px}
+.t{font-size:18px;font-weight:700}.strike{text-decoration:line-through;opacity:.6}
+.bar{height:12px;border-radius:6px;background:var(--soft);margin:12px 0 8px}.bar i{display:block;height:12px;border-radius:6px;background:var(--g)}
+.nav{margin-top:auto;position:sticky;bottom:0;display:flex;gap:12px;padding:10px 0;background:var(--bg)}
+.nav button{flex:1;min-height:56px;border:0;border-radius:14px;font-size:16px;font-weight:600;background:var(--soft);color:var(--ink)}
+.nav button.on{background:var(--g);color:var(--onG)}
+.warn{color:var(--warn);font-size:14px}
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:flex-end;justify-content:center;z-index:5}
+.sheet{width:100%;max-width:480px;background:var(--card);border-radius:20px 20px 0 0;padding:20px 20px calc(20px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:12px}
+</style>
+</head>
+<body>
+<div class="app" id="app"></div>
+<script>
+var PLAN=[[-3,"Land prep + basal manure",1.5],[0,"Sow seeds",2],[7,"Fill gaps",0.1],[10,"Weeding",0.5],[15,"Set up support",1],[20,"First fertilizer",0.8],[25,"Spray pests + mildew",0.5],[30,"Tie vines",0.4],[35,"Second fertilizer",0.8],[40,"Spray fungicide",0.5],[45,"Start harvest",0.3],[60,"Spray fungicide",0.5]];
+var S=load()||{crop:null,date:"",plants:0,y:1.5,p:20,tasks:[]},view="today",editId=null;
+function load(){try{return JSON.parse(localStorage.getItem("farmplan"))}catch(e){return null}}
+function save(){try{localStorage.setItem("farmplan",JSON.stringify(S))}catch(e){}}
+function ds(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
+function today(){return ds(new Date())}
+function add(s,n){var d=new Date(s+"T12:00:00");d.setDate(d.getDate()+n);return ds(d)}
+function diff(a,b){return Math.round((new Date(a+"T12:00:00")-new Date(b+"T12:00:00"))/864e5)}
+function fmt(n){return "₹ "+Math.round(n).toLocaleString("en-IN")}
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+function nice(s){return new Date(s+"T12:00:00").toLocaleDateString("en-IN",{day:"numeric",month:"short"})}
+function est(){return S.tasks.reduce(function(a,t){return a+t.cost},0)}
+function spent(){return S.tasks.reduce(function(a,t){return a+(t.done?t.cost:0)},0)}
+function inc(){return S.plants*S.y*S.p}
+function make(){var d=document.getElementById("d").value,n=+document.getElementById("n").value;
+ if(!d||!(n>0)){alert("Enter planting date and number of plants");return}
+ S.crop="Cucumber";S.date=d;S.plants=n;
+ S.tasks=PLAN.map(function(p,i){return{id:i+1,title:p[1],date:add(d,p[0]),cost:Math.round(p[2]*n),done:false}});
+ view="today";R()}
+function tg(id){S.tasks.forEach(function(t){if(t.id==id)t.done=!t.done});R()}
+function ed(id){editId=id;R()}
+function sv(){var t=document.getElementById("et").value.trim(),d=document.getElementById("ed").value,c=+document.getElementById("ec").value||0;
+ if(!t||!d){alert("Enter task name and date");return}
+ if(editId==="new"){S.tasks.push({id:Date.now(),title:t,date:d,cost:c,done:false})}
+ else S.tasks.forEach(function(x){if(x.id==editId){x.title=t;x.date=d;x.cost=c}});
+ editId=null;R()}
+function del(){S.tasks=S.tasks.filter(function(x){return x.id!=editId});editId=null;R()}
+function setv(k,v){S[k]=+v||0;R()}
+function reset(){if(confirm("Start a new crop? This deletes the current plan.")){S={crop:null,date:"",plants:0,y:1.5,p:20,tasks:[]};view="today";R()}}
+function go(v){view=v;R()}
+function card(t){var d=diff(t.date,today());
+ return '<div class="card row"><div style="flex:1"><div class="t'+(t.done?' strike':'')+'">'+esc(t.title)+'</div><div class="mute">'+nice(t.date)+' · Est. '+fmt(t.cost)+'</div><button class="lnk" onclick="ed('+t.id+')">Edit</button></div><button class="done'+(t.done?' on':'')+'" onclick="tg('+t.id+')">'+(t.done?'Done ✓':'Done')+'</button></div>'}
+function grp(label,arr){return arr.length?'<div class="g">'+label+'</div>'+arr.map(card).join(""):""}
+function nav(){return '<div class="nav"><button class="'+(view=="today"?'on':'')+'" onclick="go(\'today\')">Today</button><button class="'+(view=="money"?'on':'')+'" onclick="go(\'money\')">Money</button></div>'}
+function setup(){return '<div><h1>New crop</h1><div class="kn">ಹೊಸ ಬೆಳೆ</div></div><label>Crop<select><option>Cucumber</option></select></label><label>Planting date<input id="d" type="date" value="'+today()+'"></label><label>Number of plants<input id="n" type="number" inputmode="numeric" placeholder="e.g. 2000"></label><p class="warn">Sample plan only. Check it with your local agriculture officer. You can edit every task.</p><button class="big" onclick="make()" style="margin-top:auto">Make my plan</button>'}
+function todayV(){var T=today(),o=[],a=[],b=[],c=[],dn=[];
+ S.tasks.slice().sort(function(x,y){return x.date<y.date?-1:1}).forEach(function(t){var d=diff(t.date,T);
+  if(t.done)dn.push(t);else if(d<0)o.push(t);else if(d==0)a.push(t);else if(d==1)b.push(t);else c.push(t)});
+ return '<div class="row sp"><div><h1>Today</h1><div class="kn">ಇಂದು</div></div><button class="btn" onclick="reset()">New crop</button></div><div class="card"><div class="mute">'+esc(S.crop)+' · Day '+diff(T,S.date)+'</div><div class="row sp" style="margin-top:6px"><span>Est. profit</span><b style="font-size:28px;color:var(--g)">'+fmt(inc()-est())+'</b></div></div>'+grp("Overdue",o)+grp("Today",a)+grp("Tomorrow (reminder)",b)+grp("Coming up",c)+grp("Done",dn)+'<button class="out" onclick="ed(\'new\')">+ Add task</button>'+nav()}
+function row(l,v,pct,note){return '<div class="card"><div class="row sp t"><span>'+l+'</span><span>'+v+'</span></div><div class="bar"><i style="width:'+Math.min(100,pct)+'%"></i></div><div class="mute">'+note+'</div></div>'}
+function moneyV(){var e=est(),s=spent(),i=inc();
+ return '<div><h1>Money</h1><div class="kn">ಹಣ</div></div><div class="card"><div class="mute">Estimated profit</div><div style="font-size:34px;font-weight:700;color:var(--g)">'+fmt(i-e)+'</div></div>'+row("Expense",fmt(s),e?s/e*100:0,"Spent so far · Est. "+fmt(e))+row("Income","₹ 0",0,"Est. "+fmt(i))+'<div class="card" style="display:flex;flex-direction:column;gap:12px"><div class="t">Your estimates</div><label>Yield per plant (kg)<input type="number" step="0.1" value="'+S.y+'" onchange="setv(\'y\',this.value)"></label><label>Price per kg (₹)<input type="number" value="'+S.p+'" onchange="setv(\'p\',this.value)"></label><div class="warn">Sample values. Replace with your own numbers.</div></div>'+nav()}
+function sheet(){if(editId===null)return "";var t=editId==="new"?{title:"",date:today(),cost:0}:S.tasks.filter(function(x){return x.id==editId})[0];
+ return '<div class="ov"><div class="sheet"><div class="t">'+(editId==="new"?"Add task":"Edit task")+'</div><label>Task<input id="et" value="'+esc(t.title)+'"></label><label>Date<input id="ed" type="date" value="'+t.date+'"></label><label>Cost (₹)<input id="ec" type="number" value="'+t.cost+'"></label><button class="big" onclick="sv()" style="min-height:56px">Save</button><div class="row sp">'+(editId==="new"?'<span></span>':'<button class="lnk" onclick="del()">Delete task</button>')+'<button class="lnk" onclick="ed(null)">Cancel</button></div></div></div>'}
+function R(){document.getElementById("app").innerHTML=(!S.crop?setup():view=="money"?moneyV():todayV())+sheet();save()}
+R();
+</script>
+</body>
+</html>
